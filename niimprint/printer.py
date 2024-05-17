@@ -286,3 +286,46 @@ class PrinterClient:
         packet = self._transceive(RequestCodeEnum.GET_PRINT_STATUS, b"\x01", 16)
         page, progress1, progress2 = struct.unpack(">HBB", packet.data)
         return {"page": page, "progress1": progress1, "progress2": progress2}
+
+def use_printer(model="b1", conn="usb", addr='COM7', density=3, rotate="0", image: Image = None, verbose=False):
+    """Adaptation of the print_cmd in printer.py"""
+    logging.basicConfig(
+        level="DEBUG" if verbose else "INFO",
+        format="%(levelname)s | %(module)s:%(funcName)s:%(lineno)d - %(message)s",
+    )
+
+    if conn == "bluetooth":
+        assert addr is not None, "--addr argument required for bluetooth connection"
+        addr = addr.upper()
+        assert re.fullmatch(r"([0-9A-F]{2}:){5}([0-9A-F]{2})", addr), "Bad MAC address"
+        transport = BluetoothTransport(addr)
+    elif conn == "usb":
+        port = addr if addr is not None else "auto"
+        transport = SerialTransport(port=port)
+    else:
+        raise ValueError("Invalid connection type")
+
+    if model in ("b1", "b18", "b21"):
+        max_width_px = 384
+    elif model in ("d11", "d110"):
+        max_width_px = 96
+    else:
+        raise ValueError("Invalid printer model")
+
+    if model in ("b18", "d11", "d110") and density > 3:
+        logging.warning(f"{model.upper()} only supports density up to 3")
+        density = 3
+
+    if rotate != "0":
+        # PIL library rotates counter-clockwise, so we need to multiply by -1
+        image = image.rotate(-int(rotate), expand=True)
+    assert image.width <= max_width_px, f"Image width too big for {model.upper()}"
+    
+    try:
+        printer = PrinterClient(transport)
+        printer.print_image(image, density=density)
+        return True
+
+    except Exception as e:
+        print(f"Error from niimprint {e}\n")
+        return False
