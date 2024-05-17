@@ -324,8 +324,7 @@ def use_printer(model="b1", conn="usb", addr='COM7', density=3, rotate="0", imag
     try:
         printer = PrinterClient(transport)
         printer.print_image(image, density=density)
-        return True
+        return ("Success", True)
 
     except Exception as e:
-        print(f"Error from niimprint {e}\n")
-        return False
+        return (e, False)
